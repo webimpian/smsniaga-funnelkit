@@ -1,2 +1,2 @@
 # funnelkit-smsniaga
-FunnelKit automation connector for SMS Niaga
+FunnelKit automation connector for SMS Niaga.
