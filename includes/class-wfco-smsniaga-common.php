@@ -2,9 +2,25 @@
 
 class WFCO_SmsNiaga_Common
 {
-
+	/**
+	 * Singleton instance
+	 *
+	 * @var WFCO_SmsNiaga_Common|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Enable/disable debug logging
+	 *
+	 * @var bool
+	 */
+	private static $debug_enabled = null;
+
+	/**
+	 * Get singleton instance
+	 *
+	 * @return WFCO_SmsNiaga_Common
+	 */
 	public static function get_instance()
 	{
 		if (null === self::$instance) {
@@ -12,6 +28,73 @@ class WFCO_SmsNiaga_Common
 		}
 
 		return self::$instance;
+	}
+
+	/**
+	 * Check if debug logging is enabled
+	 *
+	 * @return bool
+	 */
+	public static function is_debug_enabled()
+	{
+		if (null === self::$debug_enabled) {
+			self::$debug_enabled = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+		}
+
+		return self::$debug_enabled;
+	}
+
+	/**
+	 * Log an error message
+	 *
+	 * @param string $message The error message to log
+	 * @param array  $context Additional context data
+	 * @param string $level   Log level (error, warning, info, debug)
+	 *
+	 * @return void
+	 */
+	public static function log($message, $context = array(), $level = 'error')
+	{
+		if (!self::is_debug_enabled()) {
+			return;
+		}
+
+		$log_message = sprintf(
+			'[SmsNiaga %s] %s',
+			strtoupper($level),
+			$message
+		);
+
+		if (!empty($context)) {
+			$log_message .= ' | Context: ' . wp_json_encode($context);
+		}
+
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+		error_log($log_message);
+	}
+
+	/**
+	 * Log an API error
+	 *
+	 * @param string $endpoint The API endpoint that failed
+	 * @param mixed  $response The API response
+	 * @param array  $request  The request data (sensitive data should be redacted)
+	 *
+	 * @return void
+	 */
+	public static function log_api_error($endpoint, $response, $request = array())
+	{
+		if (isset($request['api_token'])) {
+			$request['api_token'] = '***REDACTED***';
+		}
+
+		$context = array(
+			'endpoint' => $endpoint,
+			'response' => $response,
+			'request'  => $request,
+		);
+
+		self::log('API request failed', $context, 'error');
 	}
 
 	/**
@@ -68,30 +151,44 @@ class WFCO_SmsNiaga_Common
 
 	/**
 	 * Get Sender ids
-	 *
-	 * @return array
 	 */
 	public static function get_smsniaga_sender_ids_setting()
 	{
 		$data = self::get_smsniaga_settings();
-		//by default FK will stored initial data into cache or persistance storage
-		//so we just bypass during any refresh event into direct api call
-		//for this case within this plugin there is get groups and sender ids
-		$sender_ids_from_api_call = BWFCO_SmsNiaga::get_sender_ids($data['api_token'], $data['account_type']);
-		return (isset($sender_ids_from_api_call['sender_ids']) && !empty($sender_ids_from_api_call['sender_ids'])) ? $sender_ids_from_api_call['sender_ids'] : '';
+
+		if ( empty( $data['api_token'] ) || empty( $data['account_type'] ) ) {
+			return ( isset( $data['sender_ids'] ) && ! empty( $data['sender_ids'] ) ) ? $data['sender_ids'] : '';
+		}
+
+		$connector = BWFCO_SmsNiaga::get_instance();
+		$sender_ids_from_api = $connector->get_sender_ids( $data['api_token'], $data['account_type'] );
+
+		if ( isset( $sender_ids_from_api['sender_ids'] ) && ! empty( $sender_ids_from_api['sender_ids'] ) ) {
+			return $sender_ids_from_api['sender_ids'];
+		}
+
+		return ( isset( $data['sender_ids'] ) && ! empty( $data['sender_ids'] ) ) ? $data['sender_ids'] : '';
 	}
 
 	/**
 	 * Get Groups
-	 *
-	 * @return array
 	 */
 	public static function get_smsniaga_groups_setting()
 	{
 		$data = self::get_smsniaga_settings();
-		//bypass persistent data stored and call directly from API
-		$groups_from_api_call = BWFCO_SmsNiaga::get_groups($data['api_token'], $data['account_type']);
-		return (isset($groups_from_api_call['groups']) && !empty($groups_from_api_call['groups'])) ? $groups_from_api_call['groups'] : '';
+
+		if ( empty( $data['api_token'] ) || empty( $data['account_type'] ) ) {
+			return ( isset( $data['groups'] ) && ! empty( $data['groups'] ) ) ? $data['groups'] : '';
+		}
+
+		$connector = BWFCO_SmsNiaga::get_instance();
+		$groups_from_api = $connector->get_groups( $data['api_token'], $data['account_type'] );
+
+		if ( isset( $groups_from_api['groups'] ) && ! empty( $groups_from_api['groups'] ) ) {
+			return $groups_from_api['groups'];
+		}
+
+		return ( isset( $data['groups'] ) && ! empty( $data['groups'] ) ) ? $data['groups'] : '';
 	}
 }
 

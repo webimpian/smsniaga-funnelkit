@@ -1,12 +1,39 @@
 <?php
 
+/**
+ * SmsNiaga Connector for Autonami/FunnelKit
+ *
+ * Main connector class that handles SmsNiaga integration with the
+ * WooFunnels connector framework.
+ *
+ * @since 1.0.0
+ */
 class BWFCO_SmsNiaga extends BWF_CO {
+
+	/**
+	 * HTTP headers for API requests
+	 *
+	 * @var array|null
+	 */
 	public static $headers = null;
+
+	/**
+	 * Singleton instance
+	 *
+	 * @var BWFCO_SmsNiaga|null
+	 */
 	private static $ins = null;
+
+	/**
+	 * V2 API support flag
+	 *
+	 * @var bool
+	 */
 	public $v2 = true;
 
-	/** only require for oauth check  */
-
+	/**
+	 * Constructor - Initializes the connector settings and hooks
+	 */
 	public function __construct() {
 		/** Connector.php initialization */
 		$this->keys_to_track = [
@@ -115,12 +142,12 @@ class BWFCO_SmsNiaga extends BWF_CO {
 			$response['api_data']['account_type'] = $posted_data['account_type'];
 
 			$sender_ids = $this->get_sender_ids( $posted_data['api_token'], $posted_data['account_type'] );
-			if ( is_array( $sender_ids ) && COUNT( $sender_ids ) > 0 ) {
+			if ( is_array( $sender_ids ) && count( $sender_ids ) > 0 ) {
 				$response['api_data']['sender_ids'] = $sender_ids['sender_ids'];
 			}
 
 			$groups = $this->get_groups( $posted_data['api_token'], $posted_data['account_type'] );
-			if ( is_array( $groups ) && COUNT( $groups ) > 0 ) {
+			if ( is_array( $groups ) && count( $groups ) > 0 ) {
 				$response['api_data']['groups'] = $groups['groups'];
 			}
 
@@ -140,6 +167,11 @@ class BWFCO_SmsNiaga extends BWF_CO {
 	}
 
 
+	/**
+	 * Get singleton instance
+	 *
+	 * @return BWFCO_SmsNiaga
+	 */
 	public static function get_instance() {
 		if ( null === self::$ins ) {
 			self::$ins = new self();
@@ -148,6 +180,13 @@ class BWFCO_SmsNiaga extends BWF_CO {
 		return self::$ins;
 	}
 
+	/**
+	 * Set HTTP headers for API requests
+	 *
+	 * @param string $api_token The API token for authentication
+	 *
+	 * @return void
+	 */
 	public static function set_headers( $api_token ) {
 
 		$headers = array(
@@ -158,6 +197,11 @@ class BWFCO_SmsNiaga extends BWF_CO {
 		self::$headers = $headers;
 	}
 
+	/**
+	 * Get the current HTTP headers
+	 *
+	 * @return array|null
+	 */
 	public static function get_headers() {
 		return self::$headers;
 	}
@@ -176,6 +220,13 @@ class BWFCO_SmsNiaga extends BWF_CO {
 		}
 	}
 
+	/**
+	 * Add SmsNiaga connector card to available connectors
+	 *
+	 * @param array $available_connectors List of available connectors
+	 *
+	 * @return array Modified list of connectors
+	 */
 	public function add_card( $available_connectors ) {
 		$available_connectors['autonami']['connectors']['bwfco_smsniaga'] = array(
 			'name'            => 'SmsNiaga',
@@ -266,7 +317,7 @@ class BWFCO_SmsNiaga extends BWF_CO {
 
 		$all_groups = array();
 
-		if ( is_array( $groups_result ) && 200 === $groups_result['response'] && COUNT( $groups_result['body']['data'] ) > 0 ) {
+		if ( is_array( $groups_result ) && 200 === $groups_result['response'] && count( $groups_result['body']['data'] ) > 0 ) {
 			$fetched_groups = $groups_result['body']['data'];
 			$groups         = array();
 			foreach ( $fetched_groups as $group ) {
@@ -280,80 +331,76 @@ class BWFCO_SmsNiaga extends BWF_CO {
 	}
 
 	/**
-	 * sending test message
+	 * AJAX handler for sending test SMS messages
+	 *
+	 * Validates phone number format, prepares message data, and sends
+	 * a test SMS via the SmsNiaga API.
+	 *
+	 * @return void Outputs JSON response and terminates
 	 */
 	public static function test_smsniaga_message() {
 
 		BWFAN_Common::check_nonce();
-		// phpcs:disable WordPress.Security.NonceVerification
-		$result = array(
-			'status' => false,
-			'msg'    => __( 'Error', 'wp-marketing-automations' ),
-		);
-		if ( ! isset( $_POST['data']['sms_to'] ) ) {
-			$result['msg'] = __( 'Phone number can\'t be blank', 'wp-marketing-automations' );
-			wp_send_json( $result );
+
+		if ( isset( $_POST['data']['sms_to'] ) ) {
+			$sms_to    = sanitize_text_field( wp_unslash( $_POST['data']['sms_to'] ) );
+			$sms_body  = isset( $_POST['data']['sms_body_textarea'] ) ? sanitize_textarea_field( wp_unslash( $_POST['data']['sms_body_textarea'] ) ) : '';
+			$sender_id = isset( $_POST['data']['sender_id'] ) ? sanitize_text_field( wp_unslash( $_POST['data']['sender_id'] ) ) : '';
+		} else {
+			$sms_to    = isset( $_POST['sms_to'] ) ? sanitize_text_field( wp_unslash( $_POST['sms_to'] ) ) : '';
+			$sms_body  = isset( $_POST['sms_body_textarea'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sms_body_textarea'] ) ) : '';
+			$sender_id = isset( $_POST['sender_id'] ) ? sanitize_text_field( wp_unslash( $_POST['sender_id'] ) ) : '';
 		}
 
-		$post = $_POST;
-
-		$sms_body = isset( $_POST['data']['sms_body_textarea'] ) ? sanitize_text_field( $_POST['data']['sms_body_textarea'] ) : '';
-
-		$post['data']['number'] = $post['data']['sms_to'];
-		$post['data']['body']   = $sms_body;
-
-		$post['event_data']['event_slug'] = $post['event'];
-
-		// is_preview set to true for merge tag before sending data for sms;
-		BWFAN_Merge_Tag_Loader::set_data( array(
-			'is_preview' => true,
-		) );
-
-		$action_object       = BWFAN_Core()->integration->get_action( 'smsniaga_send_sms' );
-		$data_to_set         = $action_object->make_data( '', $post );
-		$data_to_set['test'] = true;
-
-		/** @var  $global_settings */
-		$global_settings = WFCO_Common::$connectors_saved_data;
-		if ( ! array_key_exists( 'bwfco_smsniaga', $global_settings ) ) {
-			wp_send_json( array(
-				'msg'    => __( 'SmsNiaga is not connected', 'wp-marketing-automations' ),
-				'status' => false,
-			) );
+		if ( empty( $sms_to ) ) {
+			wp_send_json( array( 'status' => false, 'msg' => __( 'Phone number can\'t be blank', 'wp-marketing-automations' ) ) );
 		}
 
-		$smsniaga_settings = $global_settings['bwfco_smsniaga'];
+		// Validate phone number - must be digits only (with optional + prefix)
+		if ( ! preg_match( '/^\+?[0-9]{10,15}$/', $sms_to ) ) {
+			wp_send_json( array( 'status' => false, 'msg' => __( 'Invalid phone number. Use digits only with country code (e.g. 60123456789)', 'wp-marketing-automations' ) ) );
+		}
+
+		if ( empty( $sms_body ) ) {
+			wp_send_json( array( 'status' => false, 'msg' => __( 'Message can\'t be blank', 'wp-marketing-automations' ) ) );
+		}
+
+		WFCO_Common::get_connectors_data();
+		$settings = WFCO_Common::$connectors_saved_data['bwfco_smsniaga'] ?? array();
+
+		if ( empty( $settings['api_token'] ) || empty( $settings['account_type'] ) ) {
+			wp_send_json( array( 'status' => false, 'msg' => __( 'SmsNiaga is not connected', 'wp-marketing-automations' ) ) );
+		}
 
 		$load_connector = WFCO_Load_Connectors::get_instance();
 		$call_class     = $load_connector->get_call( 'wfco_smsniaga_send_sms' );
 
-		$data_to_set['api_token']    = $smsniaga_settings['api_token'];
-		$data_to_set['account_type'] = $smsniaga_settings['account_type'];
-		$call_class->set_data( $data_to_set );
-		$response = $call_class->process();
-		if ( is_array( $response ) && ( ( 200 === absint( $response['response'] ) ) && ( isset( $response['body']['status_code'] ) && 200 === absint( $response['body']['status_code'] ) ) ) ) {
-
-			wp_send_json( array(
-				'status' => true,
-				'msg'    => __( 'Message sent successfully.', 'wp-marketing-automations' ),
-			) );
+		if ( is_null( $call_class ) ) {
+			wp_send_json( array( 'status' => false, 'msg' => __( 'SMS call not found', 'wp-marketing-automations' ) ) );
 		}
 
-		$message = __( 'Message could not be sent. ', 'autonami-automations-connectors' );
-		$status  = 4;
-
-		if ( is_array( $response ) && ( ( 200 === absint( $response['response'] ) ) && ( isset( $response['body']['status_code'] ) && 400 === absint( $response['body']['status_code'] ) ) ) ) {
-			$message = $response['body']['message'];
-		} elseif ( isset( $response['bwfan_response'] ) && ! empty( $response['bwfan_response'] ) ) {
-			$message = $response['bwfan_response'];
-		} elseif ( isset( $response['body']['message'] ) && ! empty( $response['body']['message'] ) ) {
-			$message = $response['body']['message'];
-		}
-
-		wp_send_json( array(
-			'status' => $status,
-			'msg'    => $message,
+		$call_class->set_data( array(
+			'api_token'    => $settings['api_token'],
+			'account_type' => $settings['account_type'],
+			'number'       => $sms_to,
+			'text'         => $sms_body,
+			'sender_id'    => $sender_id,
 		) );
+
+		$response = $call_class->process();
+
+		if ( is_array( $response ) && 200 === absint( $response['response'] ) && isset( $response['body']['status_code'] ) && 200 === absint( $response['body']['status_code'] ) ) {
+			wp_send_json( array( 'status' => true, 'msg' => __( 'Message sent successfully.', 'wp-marketing-automations' ) ) );
+		}
+
+		$message = __( 'Message could not be sent.', 'autonami-automations-connectors' );
+		if ( isset( $response['body']['message'] ) ) {
+			$message = $response['body']['message'];
+		} elseif ( isset( $response['body']['error'] ) ) {
+			$message = $response['body']['error'];
+		}
+
+		wp_send_json( array( 'status' => false, 'msg' => $message ) );
 	}
 
 }

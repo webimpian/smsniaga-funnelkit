@@ -20,16 +20,14 @@ class WFCO_SmsNiaga_Send_Sms extends WFCO_Call
 	}
 
 	/**
-	 * Process and do the actual processing for the current action.
-	 * This function is present in every action class.
-	 *
-	 * @return array
+	 * Process and send SMS
 	 */
 	public function process()
 	{
-		$params             = array();
-		$numbers            = trim(stripslashes($this->data['number']));
-		$numbers            = explode(',', $numbers);
+		$params  = array();
+		$numbers = isset( $this->data['number'] ) ? sanitize_text_field( wp_unslash( $this->data['number'] ) ) : '';
+		$numbers = explode(',', trim( $numbers ));
+
 		$this->data['text'] = apply_filters('bwfan_modify_send_sms_body', $this->data['text'], $this->data);
 
 		BWFCO_SmsNiaga::set_headers($this->data['api_token']);
@@ -43,20 +41,14 @@ class WFCO_SmsNiaga_Send_Sms extends WFCO_Call
 		if (!empty($this->data['sender_id'])) {
 			$params["sender_id"] = $this->data['sender_id'];
 		}
-		/*
-		 * preview : 0|1
-		 * 0 : will send the message to the receiver
-		 * 1 : will not send the message but the data return will be actual, so if we are troubleshooting
-		 * then we can use 1 as it will not deduct any amount from account
-		 */
+
 		$params["preview"] = 0;
 
-		/**
-		 * creating the api endpoint
-		 */
 		$this->api_end_point = BWFCO_SmsNiaga::get_api_endpoint($this->data['account_type']) . '/api/send';
 
 		$res = $this->make_wp_requests($this->api_end_point, wp_json_encode($params), BWFCO_SmsNiaga::get_headers(), BWF_CO::$POST);
+
+		error_log( '[SmsNiaga] API Response: ' . wp_json_encode( $res ) );
 
 		return $res;
 	}

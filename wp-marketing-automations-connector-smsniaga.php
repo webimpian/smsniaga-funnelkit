@@ -45,7 +45,7 @@ final class WFCO_SmsNiaga
      */
     public function define_plugin_properties()
     {
-        define('WFCO_SMSNIAGA_VERSION', '1.2.0');
+        define('WFCO_SMSNIAGA_VERSION', '1.2.3');
         define('WFCO_SMSNIAGA_FULL_NAME', 'Autonami Marketing Automations Connectors : SmsNiaga');
         define('WFCO_SMSNIAGA_PLUGIN_FILE', __FILE__);
         define('WFCO_SMSNIAGA_PLUGIN_DIR', __DIR__);
